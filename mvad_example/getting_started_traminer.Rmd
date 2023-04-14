@@ -1,0 +1,115 @@
+#Shortcuts
+ctrl + alt + p => exécuter tous les chunks qui précèdent le chunk courant
+ctr + enter => executer une ligne
+
+```{R}
+
+``` 
+
+```{R}
+library(TraMineR)
+data(mvad)
+seqstatl(mvad[, 17:86])
+mvad.alphabet = c("employment", "FE", "HE", "joblessness", "school", "training") 
+mvad.labels = c("employment", "further education", "higher education", "joblessness", "school", "training")
+mvad.scodes = c("EM", "FE", "HE", "JL", "SC", "TR")
+#create the sequences objects
+mvad.seq = seqdef(mvad, 17:86, alphabet = mvad.alphabet, states= mvad.scodes, labels = mvad.labels, xstep=6)
+```
+
+## 1) Vizualizing sequence data sets
+
+```{R}
+#divide the area in 2 rows, 2 cols
+par(mfrow=c(2,2))
+seqiplot(mvad.seq, with.legend=FALSE, border=NA)
+seqIplot(mvad.seq, sortv= "from.start", with.legend = FALSE)
+seqfplot(mvad.seq, with.legend = FALSE, border=NA)
+seqlegend(mvad.seq)
+``` 
+
+## 2) Descriptive statistics
+```{R}
+par(mfrow=c(2,2))
+#compute the state distribution by time point
+seqdplot(mvad.seq, with.legend=FALSE, border=NA)
+#compute the entropy plot
+seqHtplot(mvad.seq)
+#plot the sequence of modal states
+seqmsplot(mvad.seq, with.legend = FALSE, border = NA)
+#plot the mean time spent in each state of the alphabet
+seqmtplot(mvad.seq, with.legend = FALSE)
+``` 
+
+## 3) Build a typology of transitions from school to work
+
+=> clustering the sequences from the pairwise distance matrix
+
+```{R}
+dist.om1 = seqdist(mvad.seq, method = "OM", indel = 1, sm = "TRATE")
+library(cluster)
+clusterward1 = agnes(dist.om1, diss=TRUE, method="ward")
+plot(clusterward1, which.plot=2)
+cl1.4 = cutree(clusterward1, k=4)
+cl1.4fac = factor(cl1.4, labels=paste("Cluster", 1:4))
+seqIplot(mvad.seq, group=cl1.4fac, sortv="from.start")
+``` 
+
+```{R}
+#plot the state distribution for each cluster
+seqdplot(mvad.seq, group=cl1.4fac, border= NA)
+``` 
+
+```{R}
+#plot the representative sequence for each cluster
+seqrplot(mvad.seq, diss = dist.om1, group = cl1.4fac, border= NA)
+``` 
+
+## 4) Run discrepancy analyses to study how sequences are related to covariates
+
+```{R}
+#create the substitution cost matrix
+submat = seqsubm(mvad.seq, method = "TRATE")
+dist.om1 = seqdist(mvad.seq, method = "OM", indel = 1, sm = submat)
+
+da = dissassoc(dist.om1, group= mvad$gcse5eq, R=5000)
+print(da$stat)
+#The gcse5eq explains 8.3% of the discrepancy and the association is significant( p-value< 0.001)
+``` 
+
+
+Plot the evolution of the association between the state sequences and the gcse5eq covariate on six month sliding-windows. We observe that gcse5eq has a long term effect, since the pseudo R2 tends to increase alongside the time axis
+
+
+```{R}
+Gdiff = seqdiff(mvad.seq, group = mvad$gcse5eq, cmprange=c(0,5), seqdist.args = list(method = "OM", indel = 1, sm = submat))
+title = "Evolution of the pseudo R2 and L"
+plot(Gdiff, stat = c("Pseudo R2", "Levene"), lwd=2, main=title)
+``` 
+
+
+```{R}
+title <- "Evolution of within-group and overall discrepancies"
+plot(Gdiff, stat = c("discrepancy"), lwd = 2, main = title, legend.pos = "topright")
+``` 
+
+```{R}
+st = seqtree(mvad.seq ~ gcse5eq + Grammar + funemp, data=mvad, R=5000, diss= dist.om1, pval = 0.05)
+seqtreedisplay(st, type="d", border=NA)
+``` 
+
+## 5) Event sequences 
+```{R}
+mvad.seqe = seqecreate(mvad.seq, use.labels = FALSE)
+fsubseq = seqefsub(mvad.seqe, pmin.support = 0.05)
+plot(fsubseq[1:15], col="cyan")
+``` 
+
+
+Lets determine the subsequences of transitions which best discriminate the clusters found on page typology 
+and plot the frequencies of the first 6 ones in each cluster 
+
+```{R}
+discr = seqecmpgroup(fsubseq, group=cl1.4fac)
+plot(discr[1:6])
+```
